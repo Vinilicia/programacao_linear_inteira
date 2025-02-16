@@ -6,11 +6,10 @@ ILOSTLBEGIN
 
 #define CPLEX_TIME_LIM 3600
 
-int N; // Destinos
-int M; // Origens
+int N; // Pessoas e Tarefas
 vector<int> s; // Oferta
 vector<int> d; // Demanda
-vector<vector<int>> c; // Custo
+vector<vector<int>> c; // Custo de Designação
 
 void cplex(){
     IloEnv env;
@@ -20,11 +19,11 @@ void cplex(){
 	int numberRes = 0; //Total de Restricoes
 
     //---------- MODELAGEM ---------------
-    IloArray<IloNumVarArray> x(env);
+	IloArray<IloNumVarArray> x(env);
 	for(int i = 0; i < N; i++){
 		x.add(IloNumVarArray(env));
 		for(int j = 0; j < N; j++){
-			x[i].add(IloIntVar(env, 0, INT_MAX));
+			x[i].add(IloIntVar(env, 0, 1));
 			numberVar++;
 		}
 	}
@@ -35,7 +34,7 @@ void cplex(){
 
     //FUNCAO OBJETIVO ---------------------------------------------
     sum.clear();
-    for (int i = 0; i < M; i++) {
+    for (int i = 0; i < N; i++) {
         for (int j = 0; j < N; j++) {
             sum += c[i][j] * x[i][j];
         }
@@ -43,23 +42,23 @@ void cplex(){
     model.add(IloMinimize(env, sum)); //Minimizacao
 
     //RESTRICOES ---------------------------------------------
-    // R1 - Atender Demanda
+    // R1 - Tarefa Designada
     for (int j = 0; j < N; j++) {
         sum.clear();
-        for (int i = 0; i < M; i++) {
+        for (int i = 0; i < N; i++) {
             sum += x[i][j];
         }
-        model.add(sum == d[j]);
+        model.add(sum == 1);
         numberRes++;
     }
 
-    // R2 - Respeitar oferta
-    for (int i = 0; i < M; i++) {
+    // R2 - Pessoa Designada
+    for (int i = 0; i < N; i++) {
         sum.clear();
         for (int j = 0; j < N; j++) {
             sum += x[i][j];
         }
-        model.add(sum <= s[i]);
+        model.add(sum == 1);
         numberRes++;
     }
 
@@ -107,7 +106,7 @@ void cplex(){
 		runTime = difftime(timer2, timer);
 		
         cout << "Variaveis de decisao: " << endl;
-        for (int i = 0; i < M; i++) {
+        for (int i = 0; i < N; i++) {
             for (int j = 0; j < N; j++) {
                 value = IloRound(cplex.getValue(x[i][j]));
                 printf("x[%d][%d]: %.0lf\n", i, j, value);
@@ -132,34 +131,17 @@ void cplex(){
 
 int main(){
     // Leitura dos dados:
-    cin >> M >> N;
-    s.resize(M);
-    d.resize(N);
-    for (int i = 0; i < M; ++i) {
-        cin >> s[i];
-    }
-    for (int j = 0; j < N; ++j) {
-        cin >> d[j];
-    }
-    c.resize(M, vector<int>(N));
-    for (int i = 0; i < M; ++i) {
+    cin >> N;
+    c.resize(N, vector<int>(N));
+    for (int i = 0; i < N; ++i) {
         for (int j = 0; j < N; ++j) {
             cin >> c[i][j];
         }
     }
-
     cout << "Verificacao da leitura dos dados:" << endl;
-    cout << "Origens: " << M << "\nDestinos: " << N << "\n";
-    cout << "Ofertas:\n";
-    for (int i = 0; i < M; ++i) {
-        cout << s[i] << " ";
-    }
-    cout << "\nDemandas:\n";
-    for (int j = 0; j < N; ++j) {
-        cout << d[j] << " ";
-    }
-    cout << "\nCustos:\n";
-    for (int i = 0; i < M; ++i) {
+    cout << "Pessoas: " << N << "\nTarefas: " << N << "\n";
+    cout << "Matriz de custos:" << endl;
+    for (int i = 0; i < N; ++i) {
         for (int j = 0; j < N; ++j) {
             cout << c[i][j] << " ";
         }
