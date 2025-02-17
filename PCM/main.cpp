@@ -6,11 +6,13 @@ ILOSTLBEGIN
 
 #define CPLEX_TIME_LIM 3600
 
-int N; // Destinos
-int M; // Origens
-vector<int> s; // Oferta
-vector<int> d; // Demanda
-vector<vector<int>> c; // Custo
+int A; // Número de Arestas
+int V; // Número de Vértices
+int s; // Vértice de origem
+int d; // Vértice de destino
+vector<vector<int>> c;
+
+const int INF = 1e6;
 
 void cplex(){
     IloEnv env;
@@ -20,46 +22,65 @@ void cplex(){
 	int numberRes = 0; //Total de Restricoes
 
     //---------- MODELAGEM ---------------
-    IloArray<IloNumVarArray> x(env);
-	for(int i = 0; i < N; i++){
+	IloArray<IloNumVarArray> x(env);
+	for(int i = 0; i < V; i++){
 		x.add(IloNumVarArray(env));
-		for(int j = 0; j < N; j++){
-			x[i].add(IloIntVar(env, 0, INT_MAX));
+		for(int j = 0; j < V; j++){
+			x[i].add(IloIntVar(env, 0, 1));
 			numberVar++;
 		}
 	}
 
+    // Proíbe o uso de arestas com valores infinitos
+    for (int i = 0; i < V; i++) {
+        for (int j = 0; j < V; j++) {
+            if (c[i][j] == INF || i == j) {
+                x[i][j].setBounds(0, 0);
+            }
+        }
+    }
+
+
     //Definicao do ambiente modelo ------------------------------------------
     IloModel model(env);
     IloExpr sum(env);
+    IloExpr sum2(env);
 
     //FUNCAO OBJETIVO ---------------------------------------------
     sum.clear();
-    for (int i = 0; i < M; i++) {
-        for (int j = 0; j < N; j++) {
+    for (int i = 0; i < V; i++) {
+        for (int j = 0; j < V; j++) {
             sum += c[i][j] * x[i][j];
         }
     }
     model.add(IloMinimize(env, sum)); //Minimizacao
 
     //RESTRICOES ---------------------------------------------
-    // R1 - Atender Demanda
-    for (int j = 0; j < N; j++) {
-        sum.clear();
-        for (int i = 0; i < M; i++) {
-            sum += x[i][j];
-        }
-        model.add(sum == d[j]);
-        numberRes++;
+    // R1 - Saída do nó s
+    sum.clear();
+    for (int j = 0; j < V; j++) {
+        sum += x[s][j];
     }
+    model.add(sum == 1);
+    numberRes++;
 
-    // R2 - Respeitar oferta
-    for (int i = 0; i < M; i++) {
+    // R2 - Chegada no nó d
+    sum.clear();
+    for (int i = 0; i < V; i++) {
+        sum += x[i][d];
+    }
+    model.add(sum == 1);
+    numberRes++;
+
+    // R3 - Conservação de fluxo
+    for (int i = 1; i < V-1; i++) {
         sum.clear();
-        for (int j = 0; j < N; j++) {
+        sum2.clear();
+        for (int j = 0; j < V; j++) {
             sum += x[i][j];
+            sum2 += x[j][i];
         }
-        model.add(sum <= s[i]);
+        model.add(sum == sum2);
         numberRes++;
     }
 
@@ -107,8 +128,8 @@ void cplex(){
 		runTime = difftime(timer2, timer);
 		
         cout << "Variaveis de decisao: " << endl;
-        for (int i = 0; i < M; i++) {
-            for (int j = 0; j < N; j++) {
+        for (int i = 0; i < V; i++) {
+            for (int j = 0; j < V; j++) {
                 value = IloRound(cplex.getValue(x[i][j]));
                 printf("x[%d][%d]: %.0lf\n", i, j, value);
             }
@@ -125,6 +146,7 @@ void cplex(){
 	//Free Memory
 	cplex.end();
 	sum.end();
+    sum2.end();
 
 	cout << "Memory usage before end:  " << env.getMemoryUsage() / (1024. * 1024.) << " MB" << endl;
 	env.end();
@@ -132,39 +154,39 @@ void cplex(){
 
 int main(){
     // Leitura dos dados:
-    cin >> M >> N;
-    s.resize(M);
-    d.resize(N);
-    for (int i = 0; i < M; ++i) {
-        cin >> s[i];
-    }
-    for (int j = 0; j < N; ++j) {
-        cin >> d[j];
-    }
-    c.resize(M, vector<int>(N));
-    for (int i = 0; i < M; ++i) {
-        for (int j = 0; j < N; ++j) {
-            cin >> c[i][j];
+    cin >> V >> A;
+    s = 0;
+    d = V - 1;
+    c.resize(V, vector<int>(V));
+
+    // Inicializando a matriz de custos
+    for (int i = 0; i < V; i++) {
+        for (int j = 0; j < V; j++) {
+            if (i == j){
+                c[i][j] = 0;
+            }
+            else{
+                c[i][j] = INF;
+            }
         }
     }
 
+    for (int i = 0; i < A; i++) {
+        int s, d, custo;
+        cin >> s >> d >> custo;
+        c[s][d] = custo;
+        c[d][s] = custo;
+    }
+
     cout << "Verificacao da leitura dos dados:" << endl;
-    cout << "Origens: " << M << "\nDestinos: " << N << "\n";
-    cout << "Ofertas:\n";
-    for (int i = 0; i < M; ++i) {
-        cout << s[i] << " ";
-    }
-    cout << "\nDemandas:\n";
-    for (int j = 0; j < N; ++j) {
-        cout << d[j] << " ";
-    }
-    cout << "\nCustos:\n";
-    for (int i = 0; i < M; ++i) {
-        for (int j = 0; j < N; ++j) {
+    cout << "Numero de vertices: " << V << endl << "Numero de arestas: " << A << endl;
+    cout << "Matriz: " << endl;
+    for (int i = 0; i < V; i++){
+        for (int j = 0; j < V; j++) {
             cout << c[i][j] << " ";
         }
         cout << endl;
-    }
+    } 
 
     cplex();
 
